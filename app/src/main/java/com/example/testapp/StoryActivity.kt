@@ -75,7 +75,6 @@ class StoryActivity : AppCompatActivity() {
             }
         })
 
-//        val stud ent = Student("12","34")
         viewPager = findViewById(R.id.viewPager)
 
         progressBarContainer = findViewById(R.id.progressBarContainer)

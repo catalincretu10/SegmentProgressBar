@@ -32,53 +32,38 @@ class StoryActivity : AppCompatActivity() {
     private lateinit var storyAdapter: StoryAdapter
     private lateinit var progressBarContainer: LinearLayout
     private val progressBarViews = mutableListOf<View>()
-    private var isAnimating = false // Flag pentru a controla starea animației
+    private var isAnimating = false
     private var currentAnimator: ValueAnimator? = null
     private lateinit var gestureDetector: GestureDetector
-    private var previousPosition: Int = -1
-    private var lastPositionOffsetPixels = 0
+    private var currentPosition: Int = -1
     private var isFirstFragmentLaunched: Boolean = false
-    private var isDraggingRight = false
 
     @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_story)
+        setupViews()
+        setupListeners()
 
-        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            private val SWIPE_THRESHOLD = 100
-            private val SWIPE_VELOCITY_THRESHOLD = 100
 
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                try {
-                    val diffX = e2.x.minus(e1!!.x)
-                    val diffY = e2.y.minus(e1.y)
-                    if (abs(diffX) > abs(diffY)) {
-                        if (abs(diffX) > SWIPE_THRESHOLD && abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                            if (currentAnimator?.isRunning == true) {
-                                currentAnimator?.removeAllListeners()
-                                currentAnimator?.cancel()
-                                currentAnimator = null
-                                isAnimating = false
-                                if (diffX < 0)
-                                    completeProgressBar(previousPosition)
-                                else
-                                    resetProgressBar(previousPosition)
-                            }
-                            return true
-                        }
-                    }
-                } catch (exception: Exception) {
-                    exception.printStackTrace()
-                }
-                return false
-            }
-        })
+        //         Pornește prima animație
+//        if (!isFirstFragmentLaunched) {
+//            isFirstFragmentLaunched = true
+//            if (!isAnimating)
+//                viewPager.post {
+//                    animateProgressBar(0, 2000L)
+//                }
+//        }
+        viewPager.post {
+            animateProgressBar(0, 2000L)
+        }
+    }
 
+    private fun setupViews() {
         viewPager = findViewById(R.id.viewPager)
-
         progressBarContainer = findViewById(R.id.progressBarContainer)
         storyAdapter = StoryAdapter(this)
+        setupGestureDetector()
 
         val fragments = listOf(
             StoryFragment(),
@@ -87,36 +72,96 @@ class StoryActivity : AppCompatActivity() {
             StoryFragment(),
             SecondStoryFragment()
         )
-        setupListeners()
-
         fragments.forEachIndexed { index, _ ->
             addProgressBarSegment(index, fragments.size)
         }
         storyAdapter.setFragments(fragments)
         viewPager.adapter = storyAdapter
-
-        //         Pornește prima animație
-//        if (!isFirstFragmentLaunched) {
-//            isFirstFragmentLaunched = true
-//            if (!isAnimating)
-////                viewPager.post {
-////                    animateProgressBar(0, 2000L)
-////                }
-//        }
     }
+
+    private fun setupGestureDetector() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            private val SWIPE_THRESHOLD = 100
+            private val SWIPE_VELOCITY_THRESHOLD = 100
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                try {
+                    val diffX = e2.x.minus(e1!!.x)
+                    val diffY = e2.y.minus(e1.y)
+                    if (abs(diffX) > abs(diffY)) {
+                        if (abs(diffX) > SWIPE_THRESHOLD && abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                            cancelAnimation()
+                            if (diffX < 0)
+                                completeProgressBar(currentPosition)
+                            else
+                                resetProgressBar(currentPosition)
+                            return true
+                        }
+                    }
+                } catch (exception: Exception) {
+                    exception.printStackTrace()
+                }
+                return false
+            }
+
+            override fun onSingleTapConfirmed(motionEvent: MotionEvent): Boolean {
+                val screenWidth = resources.displayMetrics.widthPixels
+
+                cancelAnimation()
+                if (motionEvent.x < screenWidth / 2) {
+
+                    // Tap Left
+                    if (viewPager.currentItem > 0) {
+                        resetProgressBar(currentPosition)
+                        viewPager.currentItem = viewPager.currentItem - 1
+                        return true
+                        //Tap Right
+                    } else if (viewPager.currentItem == 0) {
+                        resetProgressBar(currentPosition)
+                        simulateFakeSwipeLeft() // we need this function to trigger onPageScrollStateChanged function
+                        //we prefer this approach to avoid launching from here another animation which can interfere with
+                        //another one due lack of synchronization
+                        return true
+                    }
+                } else {
+
+                    if (viewPager.currentItem < (viewPager.adapter?.itemCount?.minus(1) ?: 0)) {
+                        completeProgressBar(currentPosition)
+                        viewPager.currentItem = viewPager.currentItem + 1
+                        return true
+                    } else if (viewPager.currentItem == (viewPager.adapter?.itemCount?.minus(1)
+                            ?: 0)
+                    ) {
+                        completeProgressBar(currentPosition)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+    }
+
     private fun setupListeners() {
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 super.onPageSelected(position)
-
-//                if (previousPosition != -1 && position < previousPosition) {
-//                    resetProgressBar(previousPosition)
-//                }
-//
-                if (!isAnimating || previousPosition == position) {
+                if (!isAnimating) {
                     animateProgressBar(position, 2000L)
                 }
-                previousPosition = position
+                currentPosition = position
+            }
+
+            override fun onPageScrollStateChanged(state: Int) {
+                if (state == ViewPager2.SCROLL_STATE_IDLE) {
+                    if (!isAnimating) {
+                        animateProgressBar(viewPager.currentItem, 2000L)
+                    }
+                }
             }
         })
 
@@ -126,6 +171,7 @@ class StoryActivity : AppCompatActivity() {
                 MotionEvent.ACTION_DOWN -> {
                     currentAnimator?.pause()
                 }
+
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     currentAnimator?.resume()
                 }
@@ -147,6 +193,8 @@ class StoryActivity : AppCompatActivity() {
         val progressBarView = progressBarViews[position]
         progressBarView.layoutParams.width = progressBarContainer.width / progressBarViews.size
         progressBarView.requestLayout()
+        if (currentPosition == storyAdapter.itemCount - 1)
+            finish()
     }
 
 
@@ -158,18 +206,39 @@ class StoryActivity : AppCompatActivity() {
         progressBarView.requestLayout()
     }
 
+    private fun simulateFakeSwipeLeft() {
+        if (viewPager.beginFakeDrag()) {
+            viewPager.fakeDragBy(1f)
+            viewPager.endFakeDrag()
+        }
+    }
+
+    private fun cancelAnimation() {
+        if (currentAnimator?.isRunning == true) {
+            currentAnimator?.removeAllListeners()
+            currentAnimator?.cancel()
+            currentAnimator = null
+            isAnimating = false
+        }
+    }
+
+
     private fun addProgressBarSegment(index: Int, totalSegments: Int) {
         val segmentContainer = FrameLayout(this)
 
         val greyBackgroundView = View(this).apply {
-            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
             setBackgroundColor(Color.parseColor("#667085"))
         }
 
         val whiteForegroundView = View(this).apply {
-            layoutParams = FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT).apply {
-                gravity = Gravity.START
-            }
+            layoutParams =
+                FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT).apply {
+                    gravity = Gravity.START
+                }
             setBackgroundColor(Color.parseColor("#D0D5DD"))
             pivotX = 0f
         }
@@ -179,7 +248,8 @@ class StoryActivity : AppCompatActivity() {
 
         val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT).apply {
             weight = 1f / totalSegments
-            marginEnd = if (index < totalSegments - 1) 4.dpToPx(this@StoryActivity) else 0 // Spațiu între segmente
+            marginEnd =
+                if (index < totalSegments - 1) 4.dpToPx(this@StoryActivity) else 0 // Space between segments
         }
         progressBarContainer.addView(segmentContainer, params)
         progressBarViews.add(whiteForegroundView)
@@ -189,37 +259,31 @@ class StoryActivity : AppCompatActivity() {
         isAnimating = true
         Log.d("StoryActivity", "Animating progress bar for position: $position")
 
-//        if (isAnimating) {
-//            currentAnimator?.apply {
-//                removeAllListeners()
-//                cancel()
-//            }
-//            currentAnimator = null
-//        }
 
         val progressBarView = progressBarViews[position]
-       currentAnimator = ValueAnimator.ofInt(0, progressBarContainer.width / progressBarViews.size).apply {
-           this.duration = duration
-           addUpdateListener { animator ->
-               val value = animator.animatedValue as Int
-               progressBarView.layoutParams.width = value
-               progressBarView.requestLayout()
-           }
+        currentAnimator =
+            ValueAnimator.ofInt(0, progressBarContainer.width / progressBarViews.size).apply {
+                this.duration = duration
+                addUpdateListener { animator ->
+                    val value = animator.animatedValue as Int
+                    progressBarView.layoutParams.width = value
+                    progressBarView.requestLayout()
+                }
 
-           addListener(object : AnimatorListenerAdapter() {
-               override fun onAnimationEnd(animation: Animator) {
-                   super.onAnimationEnd(animation)
-                   isAnimating = false
-                   currentAnimator?.removeAllListeners()
-//                   currentAnimator?.cancel()
-                   currentAnimator = null
-                   if (position < progressBarViews.size - 1) {
-                       nextStory()
-                   }
-               }
-           })
-           start()
-       }
+                addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: Animator) {
+                        super.onAnimationEnd(animation)
+                        isAnimating = false
+                        currentAnimator?.removeAllListeners()
+                        currentAnimator = null
+                        //here we not call currentAnimator.cancel(), because we want as status segment to be displayed as completed
+                        if (position < progressBarViews.size - 1) {
+                            nextStory()
+                        }
+                    }
+                })
+                start()
+            }
     }
 
     private fun Int.dpToPx(context: Context): Int {
@@ -232,7 +296,7 @@ class StoryActivity : AppCompatActivity() {
         if (currentItem < storyAdapter.itemCount - 1) {
             viewPager.currentItem = currentItem + 1
         } else {
-            finish() // Închide activitatea dacă toate story-urile au fost vizualizate
+            finish()
         }
     }
 
@@ -243,7 +307,6 @@ class StoryActivity : AppCompatActivity() {
             val canvas = Canvas(bitmap)
             view.draw(canvas)
 
-
             // În loc să salvezi bitmap-ul, îl transmitem direct funcției de share
             shareScreenshot(bitmap)
         }
@@ -252,8 +315,10 @@ class StoryActivity : AppCompatActivity() {
     private fun shareScreenshot(bitmap: Bitmap) {
         val bytes = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, bytes)
-        val path = MediaStore.Images.Media.insertImage(contentResolver, bitmap,
-        "Title", null)
+        val path = MediaStore.Images.Media.insertImage(
+            contentResolver, bitmap,
+            "Title", null
+        )
         val uri = Uri.parse(path)
 
         val shareIntent = Intent().apply {
@@ -264,45 +329,6 @@ class StoryActivity : AppCompatActivity() {
 
         startActivity(Intent.createChooser(shareIntent, "Share Image"))
     }
-//
-//
-//    private fun onSwipeRight() {
-//        stopCurrentAnimation()
-//        if (viewPager.currentItem > 0) {
-//            viewPager.currentItem = viewPager.currentItem - 1
-//        }
-//    }
-//
-//    private fun onSwipeLeft() {
-//        stopCurrentAnimation()
-//        if (viewPager.currentItem < storyAdapter.itemCount - 1) {
-//            viewPager.currentItem = viewPager.currentItem + 1
-//        }
-//    }
-
-//    private fun stopCurrentAnimation() {
-//        currentAnimator?.let {
-//            if (it.isRunning) {
-//                it.cancel() // Oprește animația
-//            }
-//        }
-//    }
-
-
-
-//    private fun addProgressBarSegment(index: Int, totalSegments: Int) {
-//        val progressBarView = View(this).apply {
-//            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT).apply {
-//                weight = 1f / totalSegments
-//                marginEnd = if (index < totalSegments - 1) 4.dpToPx(this@StoryActivity) else 0
-//            }
-//            setBackgroundColor(Color.parseColor("#D0D5DD")) //
-////            setFore(Color.parseColor("#667085"))
-//        }
-//        progressBarContainer.addView(progressBarView)
-//        progressBarViews.add(progressBarView)
-//    }
-
 }
 
 

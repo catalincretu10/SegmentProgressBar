@@ -7,15 +7,34 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ProgressBar
 
 class StoryFragment : Fragment() {
+
+    companion object {
+        fun newInstance(student: Student): StoryFragment {
+            val fragment = StoryFragment()
+            val args = Bundle()
+            args.putParcelable("student", student)
+            fragment.arguments = args
+            return fragment
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
         return inflater.inflate(R.layout.fragment_story, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        val data = arguments?.getParcelable<Student>("student")
+        val testBtn = view.findViewById<Button>(R.id.test_btn)
+        testBtn.text = data?.user
     }
 }
 

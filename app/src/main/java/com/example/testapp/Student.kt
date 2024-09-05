@@ -1,3 +1,7 @@
 package com.example.testapp
 
-data class Student (val user: String, val otherUser: String)
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+import java.io.Serializable
+@Parcelize
+data class Student (val user: String, val otherUser: String) : Parcelable

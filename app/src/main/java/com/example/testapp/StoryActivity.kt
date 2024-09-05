@@ -65,11 +65,12 @@ class StoryActivity : AppCompatActivity() {
         storyAdapter = StoryAdapter(this)
         setupGestureDetector()
 
+        val student = Student("Cata","Alex")
         val fragments = listOf(
-            StoryFragment(),
+            StoryFragment.newInstance(student),
             SecondStoryFragment(),
             FragmentThree(),
-            StoryFragment(),
+            StoryFragment.newInstance(student),
             SecondStoryFragment()
         )
         fragments.forEachIndexed { index, _ ->
@@ -170,15 +171,16 @@ class StoryActivity : AppCompatActivity() {
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     currentAnimator?.pause()
+                    //hide
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     currentAnimator?.resume()
+                    //show
                 }
             }
             false
         }
-
 
         val shareBtn: Button = findViewById(R.id.share_button)
         val cancelBtn: Button = findViewById(R.id.cancel_button)
